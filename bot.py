@@ -16,7 +16,7 @@ from asgiref.sync import sync_to_async
 # end
 
 import logging
-import config
+import keys
 from datetime import datetime
 import pytz
 
@@ -102,26 +102,47 @@ async def plus(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @sync_to_async
 def post_person(user):
-    person = models.Person(tg_id=user.id,
-                           tg_username=user.username,
-                           tg_fullname=user.full_name,
-                           arrived_at=get_time(),
-                           )
-    person.save()
+    models.Person(
+        tg_id=user.id,
+        tg_username=user.username,
+        tg_fullname=user.full_name,
+        arrived_at=get_time(),
+    ).save()
 
 
 @sync_to_async
-def put_person(user):
-    person = models.Person.objects.get(pk=user.id)
-    person.left_at = get_time()
-    person.save()
+def put_person(user, user_id):
+    models.Person.objects.select_related().filter(pk=user_id, tg_id=user.id).update(left_at=get_time())
+
+
+@sync_to_async
+def left_none(user):
+    active_id = models.Person.objects.select_related()\
+        .filter(tg_id=user.id, left_at=None).values_list("pk", flat=True).last()
+    if active_id:
+        return True
+    else:
+        return False
+
+
+@sync_to_async
+def active_id(user):
+    person_id = models.Person.objects.select_related() \
+        .filter(tg_id=user.id, left_at=None).values_list("pk", flat=True).last()
+    print('active_id:', active_id)
+    print('type:', type(active_id))
+    if person_id:
+        return person_id
+    else:
+        return False
 
 
 async def minus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show confirm button"""
 
     user = update.effective_chat
-    if user.username in users_arr and users_dict['left_at'] is None:
+    if left_none(user):
+    # if user.username in users_arr and users_dict['left_at'] is None:
         users_arr.append(user)
 
         query = update.callback_query
@@ -132,13 +153,9 @@ async def minus(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         users_dict['left_at'] = get_time()
-
-        print(users_dict)
-
-        await put_person(user)
-        # person = models.Person.objects.get(pk=user.id)
-        # person.left_at = get_time()
-        # person.save()
+        ac_id = active_id(user)
+        print('ac_id:', ac_id)
+        await put_person(user, ac_id)
 
         return END_ROUTES
     else:
@@ -170,7 +187,7 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Run the bot."""
-    application = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
+    application = Application.builder().token(keys.TELEGRAM_BOT_TOKEN).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
