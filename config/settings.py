@@ -113,7 +113,7 @@ USE_I18N = True
 
 USE_TZ = True
 
-TELEGRAM_BOT_TOKEN = ''
+TELEGRAM_BOT_TOKEN = ""
 
 
 # Static files (CSS, JavaScript, Images)
