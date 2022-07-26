@@ -1,6 +1,8 @@
 # import below, to work Telegram Bot with Django Rest Framework properly
 # start
 import sys
+import time
+
 sys.dont_write_bytecode = True
 
 import os
@@ -10,7 +12,7 @@ os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 import django
 django.setup()
 
-from app import models
+from app import models, serializers
 
 from asgiref.sync import sync_to_async
 # end
@@ -19,6 +21,7 @@ import logging
 from datetime import datetime
 import pytz
 from config import settings
+import pandas
 
 from telegram import (
     InlineKeyboardButton,
@@ -73,9 +76,51 @@ def get_last_id(user):
         return False
 
 
+@sync_to_async
+def get_data():
+    persons = models.Person.objects.all()
+    serializer = serializers.PersonSerializer(persons, many=True)
+
+    all_data = []
+    for i in range(0, len(serializer.data)):
+        data = []
+        data.append(serializer.data[i]['tg_fullname'])
+        data.append(serializer.data[i]['arrived_at'])
+        data.append(serializer.data[i]['left_at'])
+        print('-'*50)
+        print(data)
+        all_data.append(data)
+
+    print('-'*50)
+    print(all_data)
+
+    return all_data
+
+
+def set_data(info):
+    pandas.DataFrame(data=info, columns=['name', 'arrived', 'left']).to_excel('report.xlsx', )
+    return 1
+
+
 def get_time():
     current_time = datetime.now(pytz.timezone(settings.TIME_ZONE))
     return current_time.strftime('%Y-%m-%d %H:%M:%S')
+
+
+# def send_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#     update.message.reply_document(open('report.xlsx'), 'r')
+
+
+async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    active_data = await get_data()
+
+    if set_data(active_data):
+        await update.message.reply_document(open('report.xlsx'),)
+
+    time.sleep(2)
+    os.remove('report.xlsx')
+
+    return END_STATE
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -148,7 +193,9 @@ def main():
     application = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
+        entry_points=[
+            CommandHandler("start", start),
+            CommandHandler('report', report)],
         states={
             START_STATE: [
                 CallbackQueryHandler(plus, pattern="^" + str(PLUS) + "$"),
@@ -162,6 +209,7 @@ def main():
     )
 
     application.add_handler(conv_handler)
+    # application.add_handler(CommandHandler('report', report))
 
     application.run_polling()
 
