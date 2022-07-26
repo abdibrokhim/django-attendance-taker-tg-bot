@@ -48,6 +48,8 @@ START_STATE, END_STATE = range(2)
 # Callback data
 PLUS, MINUS = range(2)
 
+# File path
+FILE_PATH = 'file/report.xlsx'
 
 @sync_to_async
 def post_person(user):
@@ -83,22 +85,14 @@ def get_data():
 
     all_data = []
     for i in range(0, len(serializer.data)):
-        data = []
-        data.append(serializer.data[i]['tg_fullname'])
-        data.append(serializer.data[i]['arrived_at'])
-        data.append(serializer.data[i]['left_at'])
-        print('-'*50)
-        print(data)
+        data = [serializer.data[i]['tg_fullname'], serializer.data[i]['arrived_at'], serializer.data[i]['left_at']]
         all_data.append(data)
-
-    print('-'*50)
-    print(all_data)
 
     return all_data
 
 
 def set_data(info):
-    pandas.DataFrame(data=info, columns=['name', 'arrived', 'left']).to_excel('report.xlsx', )
+    pandas.DataFrame(data=info, columns=['name', 'arrived', 'left']).to_excel(FILE_PATH)
     return 1
 
 
@@ -107,18 +101,18 @@ def get_time():
     return current_time.strftime('%Y-%m-%d %H:%M:%S')
 
 
-# def send_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
-#     update.message.reply_document(open('report.xlsx'), 'r')
-
-
 async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     active_data = await get_data()
 
     if set_data(active_data):
-        await update.message.reply_document(open('report.xlsx'),)
+        await update.message.reply_document(
+            document=open(FILE_PATH, 'rb'),
+            filename='report.xlsx',
+            caption='Report'
+        )
 
     time.sleep(2)
-    os.remove('report.xlsx')
+    os.remove(FILE_PATH)
 
     return END_STATE
 
@@ -209,7 +203,6 @@ def main():
     )
 
     application.add_handler(conv_handler)
-    # application.add_handler(CommandHandler('report', report))
 
     application.run_polling()
 
